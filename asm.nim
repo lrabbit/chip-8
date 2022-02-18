@@ -7,6 +7,8 @@ import std/nre
 import std/tables
 import std/math
 import std/strformat
+import std/parseopt
+import std/options
 
 type
     ParsedLine = tuple
@@ -123,7 +125,7 @@ proc parseLine(line: string): ParsedLine =
                     elif operands.len != 0: @[operands]
                     else: @[]))
 
-proc extractSymbols(program: seq[string]): Table[string, uint16] =
+proc extractSymbols(program: seq[string], printSymbols: bool): Table[string, uint16] =
     var symbols = initTable[string, uint16]()
     var currentPtr = programStart
 
@@ -145,9 +147,11 @@ proc extractSymbols(program: seq[string]): Table[string, uint16] =
 
         currentPtr = currentPtr + 2
 
-    echo "--- symbols ---"
-    for s in keys(symbols):
-        echo fmt"label: {s} -> 0x{toHex(symbols[s], 4)}"
+    if printSymbols:
+        echo "--- Symbols ---"
+        for symbol in keys(symbols):
+            echo fmt"0x{toHex(symbols[symbol], 4)}   {symbol}"
+        echo ""
 
     return symbols
 
@@ -480,10 +484,10 @@ proc assembleBYTE(symbols: Table[string, uint16], operands: seq[string]): uint16
 
     panic(fmt"Invalid operands for directive BYTE: {operands}")
 
-proc assemble(program: seq[string], symbols: Table[string, uint16]): seq[uint16] = 
+proc assemble(program: seq[string], symbols: Table[string, uint16], printStatements: bool): seq[uint16] = 
     var currentPtr = programStart
     var assembled = newSeq[uint16]()
-    var dump = newSeq[string]()
+    var statements = newSeq[string]()
 
     for line in program:
         # tokenize the line
@@ -535,14 +539,15 @@ proc assemble(program: seq[string], symbols: Table[string, uint16]): seq[uint16]
             else: 0
 
         assembled.add(opcode)
-        dump.add(fmt"0x{toHex(currentPtr, 3)}  {toHex(opcode, 4)}          {line}")
+        statements.add(fmt"0x{toHex(currentPtr, 4)} {toHex(opcode, 4)}          {line}")
 
         currentPtr = currentPtr + 2
     
-    echo ""
-    echo "--- assembled statements ---"
-    for d in dump:
-        echo d
+    if printStatements:
+        echo "--- Assembled statements ---"
+        for statement in statements:
+            echo statement
+        echo ""
 
     return assembled
 
@@ -556,19 +561,51 @@ proc writeProgram(assembled: seq[uint16], outputFile: string): void =
     close(outFile)
 
 
-if paramCount() < 1:
-    echo "usage: asm <input file> [<output file>]"
+proc usage(): void = 
+    echo "Usage: asm [options...] <input file>"
+    echo " --output <output file>   write the assembled program to the given file"
+    echo " --symbols                print the symbols table"
+    echo " --statements             print the assembled statements"
     quit(1)
 
+var inputFile = none(string)
+var outputFile = none(string)
+var printSymbols = false
+var printStatements = false
+
+var opts = initOptParser(commandLineParams(), longNoVal = @["output", "symbols", "statements"])
+while true:
+    opts.next()
+    case opts.kind:
+        of cmdEnd: break
+        of cmdShortOption, cmdLongOption:
+            if opts.key in @["symbols"]:
+                printSymbols = true
+            elif opts.key in @["statements"]:
+                printStatements = true
+            elif opts.key in @["output"]:
+                if opts.val == "":
+                    usage()
+                else:
+                    outputFile = some(opts.val)
+        of cmdArgument: 
+            inputFile = some(opts.key)
+            
+if inputFile.isNone():
+    panic("No input file given")
+
+if not fileExists(inputFile.get()):
+    panic("Input file not found")
+
 # load program
-let program = loadProgram(paramStr(1))
+let program = loadProgram(inputFile.get())
 
 # extract symbols
-let symbols = extractSymbols(program)
+let symbols = extractSymbols(program, printSymbols)
 
 # assemble the program
-let assembled = assemble(program, symbols)
+let assembled = assemble(program, symbols, printStatements)
 
 # write the output
-if paramCount() == 2:
-    writeProgram(assembled, paramStr(2))
+if outputFile.isSome():
+    writeProgram(assembled, outputFile.get())
