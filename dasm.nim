@@ -85,8 +85,8 @@ proc formatInstruction(mnemonic:string, vx = "", vy = "", value = ""): string =
     else:
         return mnemonic
 
-proc disassembleBYTE(opcode: uint16): string = 
-    return formatInstruction("BYTE", value = fmt"0x{toHex(opcode, 2)}")
+proc disassembleWORD(opcode: uint16): string = 
+    return formatInstruction("WORD", value = fmt"0x{toHex(opcode, 4)}")
 
 proc disassemble0(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 00E0 - CLS
@@ -120,8 +120,6 @@ proc disassemble0(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
         return formatInstruction("SCU", value = toHex(opcode and 0x000F, 1))
     elif (opcode and 0xFFF0) == 0x00C0:
         return formatInstruction("SCD", value = toHex(opcode and 0x000F, 1))
-    
-    return disassembleBYTE(opcode)
 
 proc disassemble1(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 1nnn - JP addr
@@ -129,15 +127,11 @@ proc disassemble1(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
     if isAddress(opcode):
         return formatInstruction("JP", value = getLabel(symbols, opcode))
 
-    return disassembleBYTE(opcode)
-
 proc disassemble2(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 2nnn - CALL addr
 
     if isAddress(opcode):
         return formatInstruction("CALL", value = getLabel(symbols, opcode))
-
-    return disassembleBYTE(opcode)
 
 proc disassemble3(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 3xnn - SE Vx, byte
@@ -145,15 +139,11 @@ proc disassemble3(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
     if isRegister(opcode, pFirst):
         return formatInstruction("SE", vx = getRegister(opcode, pFirst) , value = getValue(opcode, 2))
 
-    return disassembleBYTE(opcode)
-
 proc disassemble4(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 4xnn - SNE Vx, byte
 
     if isRegister(opcode, pFirst):
         return formatInstruction("SNE", vx = getRegister(opcode, pFirst), value = getValue(opcode, 2))
-
-    return disassembleBYTE(opcode)
 
 proc disassemble5(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 5xy0 - SE Vx, Vy
@@ -161,23 +151,17 @@ proc disassemble5(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
     if (opcode and 0xF00F) == 0x5000 and isRegister(opcode, pFirst) and isRegister(opcode, pSecond):
         return formatInstruction("SE", vx = getRegister(opcode, pFirst), vy =getRegister(opcode, pSecond))
 
-    return disassembleBYTE(opcode)
-
 proc disassemble6(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 6xnn - LD Vx, byte
 
     if isRegister(opcode, pFirst):
         return formatInstruction("LD", vx = getRegister(opcode, pFirst), value = getValue(opcode, 2))
 
-    return disassembleBYTE(opcode)
-
 proc disassemble7(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 7xnn - ADD Vx, byte
 
     if isRegister(opcode, pFirst):
         return formatInstruction("ADD", vx = getRegister(opcode, pFirst), value = getValue(opcode, 2))
-
-    return disassembleBYTE(opcode)
 
 proc disassemble8(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 8xy0 - LD Vx, Vy
@@ -216,15 +200,11 @@ proc disassemble8(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
             else:
                 return formatInstruction("SHL", vx = getRegister(opcode, pFirst), vy = getRegister(opcode, pSecond))
 
-    return disassembleBYTE(opcode)
-
 proc disassemble9(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 9xy0 - SNE Vx, Vy
 
     if (opcode and 0xF00F) == 0x9000 and isRegister(opcode, pFirst) and isRegister(opcode, pSecond):
         return formatInstruction("SNE", vx = getRegister(opcode, pFirst), vy = getRegister(opcode, pSecond))
-
-    return disassembleBYTE(opcode)
 
 proc disassembleA(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # Annn - LD I, addr
@@ -232,15 +212,11 @@ proc disassembleA(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
     if isAddress(opcode):
         return formatInstruction("LD", vx = "I", value = getLabel(symbols, opcode))
 
-    return disassembleBYTE(opcode)
-
 proc disassembleB(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # Bnnn - JP V0, addr
 
     if isAddress(opcode):
         return formatInstruction("JP", vx = "V0", value = getLabel(symbols, opcode))
-
-    return disassembleBYTE(opcode)
 
 proc disassembleC(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # Cxkk - RND Vx, byte
@@ -248,15 +224,11 @@ proc disassembleC(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
     if isRegister(opcode, pFirst):
         return formatInstruction("RND", vx = getRegister(opcode, pFirst), value = getValue(opcode, 2))
 
-    return disassembleBYTE(opcode)
-
 proc disassembleD(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # Dxyn - DRW Vx, Vy, nibble
 
     if isRegister(opcode, pFirst) and isRegister(opcode, pSecond):
         return formatInstruction("DRW", vx = getRegister(opcode, pFirst), vy = getRegister(opcode, pSecond), value = getValue(opcode, 1))
-
-    return disassembleBYTE(opcode)
 
 proc disassembleE(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # Ex9E - SKP Vx
@@ -267,8 +239,6 @@ proc disassembleE(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
             return formatInstruction("SKP", vx = getRegister(opcode, pFirst))
         elif (opcode and 0xF0FF) == 0xE0A1:
             return formatInstruction("SKNP", vx = getRegister(opcode, pFirst))
-
-    return disassembleBYTE(opcode)
 
 proc disassembleF(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # Fx07 - LD Vx, DT
@@ -313,8 +283,6 @@ proc disassembleF(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
         elif (opcode and 0xF0FF) == 0xF075:
             return formatInstruction("LD", vx = "R", vy = getRegister(opcode, pFirst))
 
-    return disassembleBYTE(opcode)
-
 proc disassemble(opcodes: seq[uint16], printSymbols: bool, printStatements: bool): (TableRef[uint16, string], seq[string]) =
     var symbols = newTable[uint16, string]()
     var instructions = newSeq[string]()
@@ -340,12 +308,14 @@ proc disassemble(opcodes: seq[uint16], printSymbols: bool, printStatements: bool
             of 0xE: disassembleE(symbols, opcode, currentPtr)
             of 0xF: disassembleF(symbols, opcode, currentPtr)
             
-            else: ""
+            else: "<>"
 
-        if instruction == "":
-            continue
-
-        instructions.add(instruction)
+        if instruction == "<>":
+            panic(fmt"Unknown opcode: {opcode}")
+        elif instruction == "":
+            instructions.add(disassembleWORD(opcode))
+        else:
+            instructions.add(instruction)
 
         currentPtr = currentPtr + 2
 

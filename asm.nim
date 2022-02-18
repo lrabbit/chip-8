@@ -41,12 +41,12 @@ type
         vtHex
         vtNone
 
-const instructions = @["ADD", "AND", "CALL", "CLS", "DRW", "JP", "LD", "OR", "RET", "RND", "SE", "SHL", "SHR", "SKP", "SKNP", "SNE", "SUB", "SUBN", "SYS", "XOR", "EXIT", "HIGH", "LOW", "SCU", "SCD", "SCL", "SCR", "BYTE"]
+const instructions = @["ADD", "AND", "CALL", "CLS", "DRW", "JP", "LD", "OR", "RET", "RND", "SE", "SHL", "SHR", "SKP", "SKNP", "SNE", "SUB", "SUBN", "SYS", "XOR", "EXIT", "HIGH", "LOW", "SCU", "SCD", "SCL", "SCR", "WORD"]
 
 let lineRegex = re"^(?<label>[;\w]*)\s+(?<mnemonic>[;\w]*)\s*(?<operand>[\[\]\w,+-]*)?.*$"
 let registerRegex = re"(?:^[vV][0-9a-fA-F]$)|(?:^[iI]$)|(?:^\[[iI]\]$)|(?:^[kK]$)|(?:^[dD][tT]$)|(?:^[sS][tT]$)|(?:^[fF]$)|(?:^[bB]$)|(?:^[hH][fF]$)|(?:^[rR]$)"
 let literalRegex = re"^[0-9a-fA-F]{1,2}$"
-let byteRegex = re"^(?:0x[0-9a-fA-F]{2}$)|(?:0b[01]{8}$)"
+let wordRegex = re"^(?:0x[0-9a-fA-F]{4}$)|(?:0b[01]{16}$)"
 
 const programStart:uint16 = 0x200
 
@@ -55,7 +55,7 @@ proc panic(message: string): void =
     quit(1)
 
 proc isByte(value: string): ValueType = 
-    var matched:Option[RegexMatch] = value.match(byteRegex)
+    var matched:Option[RegexMatch] = value.match(wordRegex)
     if matched.isNone:
         return vtNone
 
@@ -472,9 +472,9 @@ proc assembleSCR(symbols: Table[string, uint16], operands: seq[string]): uint16 
     
     panic(fmt"Invalid operands for mnemonic SCR: {operands}")
 
-proc assembleBYTE(symbols: Table[string, uint16], operands: seq[string]): uint16 = 
-    # BYTE 0b00001111
-    # BYTE 0x0F
+proc assembleWORD(symbols: Table[string, uint16], operands: seq[string]): uint16 = 
+    # WORD 0b0000111100001111
+    # WORD 0x0F0F
 
     if operands.len == 1:
         if isByte(operands[0]) == vtBin:
@@ -534,7 +534,7 @@ proc assemble(program: seq[string], symbols: Table[string, uint16], printStateme
             of "SCR": assembleSCR(symbols, operands)
 
             # directives
-            of "BYTE": assembleBYTE(symbols, operands)
+            of "WORD": assembleWORD(symbols, operands)
 
             else: 0
 
