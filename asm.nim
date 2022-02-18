@@ -166,23 +166,23 @@ proc parseOperand(operand: string, position: Position): uint16 =
 proc parseLiteral(literal: string): uint16 =
     return cast[uint16](parseHexInt(literal))
 
-proc assembleOpcode(symbols: Table[string, uint16], opcode: uint16, vx = "", vy = "", value = ""): uint16 =
+proc assembleOpcode(symbols: Table[string, uint16], opcode: uint16, vx = none(string), vy = none(string), value = none(string)): uint16 =
     var output = opcode
 
-    if not isEmptyOrWhitespace(vx):
-        output = output + parseOperand(vx, pFirst)
+    if vx.isSome():
+        output = output + parseOperand(vx.get(), pFirst)
     
-    if not isEmptyOrWhitespace(vy):
-        output = output + parseOperand(vy, pSecond)
+    if vy.isSome():
+        output = output + parseOperand(vy.get(), pSecond)
 
-    if not isEmptyOrWhitespace(value):
-        if isLiteral(value, cast[uint8](value.len)):
-            output = output + parseLiteral(value)
+    if value.isSome():
+        if isLiteral(value.get(), cast[uint8](value.get().len)):
+            output = output + parseLiteral(value.get())
         else:
-            if not symbols.contains(value):
+            if not symbols.contains(value.get()):
                 panic(fmt"Symbol not found: {value}")
             
-            output = output + symbols[value]
+            output = output + symbols[value.get()]
 
     return output
 
@@ -198,11 +198,11 @@ proc assembleADD(symbols: Table[string, uint16], operands: seq[string]): uint16 
     if operands.len == 2:
         if isRegister(operands[0]) == rtV:
             if isLiteral(operands[1], 2):
-                return assembleOpcode(symbols, 0x7000, vx = operands[0], value = operands[1])
+                return assembleOpcode(symbols, 0x7000, vx = some(operands[0]), value = some(operands[1]))
             elif isRegister(operands[1]) == rtV:
-                return assembleOpcode(symbols, 0x8004, vx = operands[0], vy = operands[1])
+                return assembleOpcode(symbols, 0x8004, vx = some(operands[0]), vy = some(operands[1]))
         elif isRegister(operands[0]) == rtI and isRegister(operands[1]) == rtV:
-            return assembleOpcode(symbols, 0xF01E, vx = operands[1])
+            return assembleOpcode(symbols, 0xF01E, vx = some(operands[1]))
 
     panic(fmt"Invalid operands for mnemonic ADD: {operands}")
 
@@ -210,7 +210,7 @@ proc assembleAND(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 8xy2 - AND Vx, Vy
 
     if operands.len == 2 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV:
-        return assembleOpcode(symbols, 0x8002, vx = operands[0], vy = operands[1])
+        return assembleOpcode(symbols, 0x8002, vx = some(operands[0]), vy = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic AND: {operands}")
 
@@ -218,7 +218,7 @@ proc assembleCALL(symbols: Table[string, uint16], operands: seq[string]): uint16
     # 2nnn - CALL addr
 
     if operands.len == 1 and isSymbol(symbols, operands[0]):
-        return assembleOpcode(symbols, 0x2000, value = operands[0])
+        return assembleOpcode(symbols, 0x2000, value = some(operands[0]))
     
     panic(fmt"Invalid operands for mnemonic CALL: {operands}")
 
@@ -234,7 +234,7 @@ proc assembleDRW(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # Dxyn - DRW Vx, Vy, nibble
 
     if operands.len == 3 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV and isLiteral(operands[2], 1):
-        return assembleOpcode(symbols, 0xD000, vx = operands[0], vy = operands[1], value = operands[2])
+        return assembleOpcode(symbols, 0xD000, vx = some(operands[0]), vy = some(operands[1]), value = some(operands[2]))
     
     panic(fmt"Invalid operands for mnemonic DRW: {operands}")
 
@@ -243,9 +243,9 @@ proc assembleJP(symbols: Table[string, uint16], operands: seq[string]): uint16 =
     # Bnnn - JP V0, addr
 
     if operands.len == 1 and isSymbol(symbols, operands[0]):
-        return assembleOpcode(symbols, 0x1000, value = operands[0])
+        return assembleOpcode(symbols, 0x1000, value = some(operands[0]))
     elif operands.len == 2 and isRegister(operands[0]) == rtV and stripHead(operands[0]) == "0" and isSymbol(symbols, operands[1]):
-        return assembleOpcode(symbols, 0xB000, value = operands[1])
+        return assembleOpcode(symbols, 0xB000, value = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic JP: {operands}")
 
@@ -268,34 +268,34 @@ proc assembleLD(symbols: Table[string, uint16], operands: seq[string]): uint16 =
     if operands.len == 2:
         if isRegister(operands[0]) == rtV:
             if isLiteral(operands[1], 2):
-                return assembleOpcode(symbols, 0x6000, vx = operands[0], value = operands[1])
+                return assembleOpcode(symbols, 0x6000, vx = some(operands[0]), value = some(operands[1]))
             elif isRegister(operands[1]) == rtV: 
-                return assembleOpcode(symbols, 0x8000, vx = operands[0], vy = operands[1])
+                return assembleOpcode(symbols, 0x8000, vx = some(operands[0]), vy = some(operands[1]))
             elif isRegister(operands[1]) == rtDT: 
-                return assembleOpcode(symbols, 0xF007, vx = operands[0])
+                return assembleOpcode(symbols, 0xF007, vx = some(operands[0]))
             elif isRegister(operands[1]) == rtK: 
-                return assembleOpcode(symbols, 0xF00A, vx = operands[0])
+                return assembleOpcode(symbols, 0xF00A, vx = some(operands[0]))
             elif isRegister(operands[1]) == rtArrI: 
-                return assembleOpcode(symbols, 0xF065, vx = operands[0])
+                return assembleOpcode(symbols, 0xF065, vx = some(operands[0]))
             elif isRegister(operands[1]) == rtR: 
-                return assembleOpcode(symbols, 0xF085, vx = operands[0])
+                return assembleOpcode(symbols, 0xF085, vx = some(operands[0]))
         elif isRegister(operands[1]) == rtV:
             if isRegister(operands[0]) == rtDT:
-                return assembleOpcode(symbols, 0xF015, vx = operands[1])
+                return assembleOpcode(symbols, 0xF015, vx = some(operands[1]))
             elif isRegister(operands[0]) == rtST:
-                return assembleOpcode(symbols, 0xF018, vx = operands[1])
+                return assembleOpcode(symbols, 0xF018, vx = some(operands[1]))
             elif isRegister(operands[0]) == rtF:
-                return assembleOpcode(symbols, 0xF029, vx = operands[1])
+                return assembleOpcode(symbols, 0xF029, vx = some(operands[1]))
             elif isRegister(operands[0]) == rtB:
-                return assembleOpcode(symbols, 0xF033, vx = operands[1])
+                return assembleOpcode(symbols, 0xF033, vx = some(operands[1]))
             elif isRegister(operands[0]) == rtArrI:
-                return assembleOpcode(symbols, 0xF055, vx = operands[1])
+                return assembleOpcode(symbols, 0xF055, vx = some(operands[1]))
             elif isRegister(operands[0]) == rtHF:
-                return assembleOpcode(symbols, 0xF030, vx = operands[1])
+                return assembleOpcode(symbols, 0xF030, vx = some(operands[1]))
             elif isRegister(operands[0]) == rtR:
-                return assembleOpcode(symbols, 0xF075, vx = operands[1])
+                return assembleOpcode(symbols, 0xF075, vx = some(operands[1]))
         elif isRegister(operands[0]) == rtI and isSymbol(symbols, operands[1]):
-            return assembleOpcode(symbols, 0xA000, value = operands[1])
+            return assembleOpcode(symbols, 0xA000, value = some(operands[1]))
         
     panic(fmt"Invalid operands for mnemonic LD: {operands}")
 
@@ -303,7 +303,7 @@ proc assembleOR(symbols: Table[string, uint16], operands: seq[string]): uint16 =
     # 8xy1 - OR Vx, Vy
 
     if operands.len == 2 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV:
-        return assembleOpcode(symbols, 0x8001, vx = operands[0], vy = operands[1])
+        return assembleOpcode(symbols, 0x8001, vx = some(operands[0]), vy = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic OR: {operands}")
 
@@ -319,7 +319,7 @@ proc assembleRND(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # Cxnn - RND Vx, byte
 
     if operands.len == 2 and isRegister(operands[0]) == rtV and isLiteral(operands[1], 2):
-        return assembleOpcode(symbols, 0xC000, vx = operands[0], value = operands[1])
+        return assembleOpcode(symbols, 0xC000, vx = some(operands[0]), value = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic RND: {operands}")
 
@@ -329,9 +329,9 @@ proc assembleSE(symbols: Table[string, uint16], operands: seq[string]): uint16 =
 
     if operands.len == 2 and isRegister(operands[0]) == rtV:
         if isLiteral(operands[1], 2):
-            return assembleOpcode(symbols, 0x3000, vx = operands[0], value = operands[1])
+            return assembleOpcode(symbols, 0x3000, vx = some(operands[0]), value = some(operands[1]))
         elif isRegister(operands[1]) == rtV:
-            return assembleOpcode(symbols, 0x5000, vx = operands[0], vy = operands[1])
+            return assembleOpcode(symbols, 0x5000, vx = some(operands[0]), vy = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic SE: {operands}")
 
@@ -339,9 +339,9 @@ proc assembleSHL(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 8xyE - SHL Vx {, Vy}
 
     if operands.len == 1 and isRegister(operands[0]) == rtV:
-        return assembleOpcode(symbols, 0x800E, vx = operands[0])
+        return assembleOpcode(symbols, 0x800E, vx = some(operands[0]))
     elif operands.len == 2 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV:
-        return assembleOpcode(symbols, 0x800E, vx = operands[0], vy = operands[1])
+        return assembleOpcode(symbols, 0x800E, vx = some(operands[0]), vy = some(operands[1]))
 
     panic(fmt"Invalid operands for mnemonic SHL: {operands}")
 
@@ -349,9 +349,9 @@ proc assembleSHR(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 8xy6 - SHR Vx {, Vy}
 
     if operands.len == 1 and isRegister(operands[0]) == rtV:
-        return assembleOpcode(symbols, 0x8006, vx = operands[0])
+        return assembleOpcode(symbols, 0x8006, vx = some(operands[0]))
     elif operands.len == 2 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV:
-        return assembleOpcode(symbols, 0x8006, vx = operands[0], vy = operands[1])
+        return assembleOpcode(symbols, 0x8006, vx = some(operands[0]), vy = some(operands[1]))
 
     panic(fmt"Invalid operands for mnemonic SHR: {operands}")
 
@@ -359,7 +359,7 @@ proc assembleSKP(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # Ex9E - SKP Vx
 
     if operands.len == 1 and isRegister(operands[0]) == rtV:
-        return assembleOpcode(symbols, 0xE09E, vx = operands[0])
+        return assembleOpcode(symbols, 0xE09E, vx = some(operands[0]))
     
     panic(fmt"Invalid operands for mnemonic SKP: {operands}")
 
@@ -367,7 +367,7 @@ proc assembleSKNP(symbols: Table[string, uint16], operands: seq[string]): uint16
     # ExA1 - SKNP Vx
 
     if operands.len == 1 and isRegister(operands[0]) == rtV:
-        return assembleOpcode(symbols, 0xE0A1, vx = operands[0])
+        return assembleOpcode(symbols, 0xE0A1, vx = some(operands[0]))
     
     panic(fmt"Invalid operands for mnemonic SKNP: {operands}")
 
@@ -377,9 +377,9 @@ proc assembleSNE(symbols: Table[string, uint16], operands: seq[string]): uint16 
 
     if operands.len == 2 and isRegister(operands[0]) == rtV:
         if isLiteral(operands[1], 2):
-            return assembleOpcode(symbols, 0x4000, vx = operands[0], value = operands[1])
+            return assembleOpcode(symbols, 0x4000, vx = some(operands[0]), value = some(operands[1]))
         elif isRegister(operands[1]) == rtV:
-            return assembleOpcode(symbols, 0x9000, vx = operands[0], vy = operands[1])
+            return assembleOpcode(symbols, 0x9000, vx = some(operands[0]), vy = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic SNE: {operands}")
 
@@ -387,7 +387,7 @@ proc assembleSUB(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 8xy5 - SUB Vx, Vy
 
     if operands.len == 2 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV:
-        return assembleOpcode(symbols, 0x8005, vx = operands[0], vy = operands[1])
+        return assembleOpcode(symbols, 0x8005, vx = some(operands[0]), vy = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic SUB: {operands}")
 
@@ -395,7 +395,7 @@ proc assembleSUBN(symbols: Table[string, uint16], operands: seq[string]): uint16
     # 8xy7 - SUBN Vx, Vy
 
     if operands.len == 2 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV:
-        return assembleOpcode(symbols, 0x8007, vx = operands[0], vy = operands[1])
+        return assembleOpcode(symbols, 0x8007, vx = some(operands[0]), vy = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic SUBN: {operands}")
 
@@ -403,7 +403,7 @@ proc assembleSYS(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 0nnn - SYS addr
 
     if operands.len == 1 and isSymbol(symbols, operands[0]):
-        return assembleOpcode(symbols, 0x0000, value = operands[0])
+        return assembleOpcode(symbols, 0x0000, value = some(operands[0]))
     
     panic(fmt"Invalid operands for mnemonic SYS: {operands}")
 
@@ -412,7 +412,7 @@ proc assembleXOR(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 8xy3 - XOR Vx, Vy
 
     if operands.len == 2 and isRegister(operands[0]) == rtV and isRegister(operands[1]) == rtV:
-        return assembleOpcode(symbols, 0x8003, vx = operands[0], vy = operands[1])
+        return assembleOpcode(symbols, 0x8003, vx = some(operands[0]), vy = some(operands[1]))
     
     panic(fmt"Invalid operands for mnemonic XOR: {operands}")
 
@@ -444,7 +444,7 @@ proc assembleSCU(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 00Bn - SCU nibble
 
     if operands.len == 1 and isLiteral(operands[0], 1):
-        return assembleOpcode(symbols, 0x00B0, value = operands[0])
+        return assembleOpcode(symbols, 0x00B0, value = some(operands[0]))
     
     panic(fmt"Invalid operands for mnemonic SCU: {operands}")
 
@@ -452,7 +452,7 @@ proc assembleSCD(symbols: Table[string, uint16], operands: seq[string]): uint16 
     # 00Cn - SCD nibble
 
     if operands.len == 1 and isLiteral(operands[0], 1):
-        return assembleOpcode(symbols, 0x00C0, value = operands[0])
+        return assembleOpcode(symbols, 0x00C0, value = some(operands[0]))
     
     panic(fmt"Invalid operands for mnemonic SCD: {operands}")
 
