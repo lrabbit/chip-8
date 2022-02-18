@@ -3,6 +3,8 @@ import system/io
 import std/strformat
 import std/strutils
 import std/tables
+import std/parseopt
+import std/options
 
 const programStart: uint16 = 0x200
 
@@ -313,7 +315,7 @@ proc disassembleF(symbols: ref Table[uint16, string], opcode: uint16, currentPtr
 
     return disassembleBYTE(opcode)
 
-proc disassemble(opcodes: seq[uint16]): (TableRef[uint16, string], seq[string]) =
+proc disassemble(opcodes: seq[uint16], printSymbols: bool, printStatements: bool): (TableRef[uint16, string], seq[string]) =
     var symbols = newTable[uint16, string]()
     var instructions = newSeq[string]()
     var currentPtr = programStart
@@ -346,26 +348,84 @@ proc disassemble(opcodes: seq[uint16]): (TableRef[uint16, string], seq[string]) 
         instructions.add(instruction)
 
         currentPtr = currentPtr + 2
-    
+
+    if printSymbols:
+        echo "--- Symbols ---"
+        for address in keys(symbols):
+            echo fmt"0x{toHex(address, 4)}   {symbols[address]}"
+        echo ""
+
+    if printStatements:
+        echo "--- Disassembled statements ---"
+
+        currentPtr = programStart
+        for instruction in instructions:
+            let label = alignLeft((if symbols.contains(currentPtr): symbols[currentPtr] else: ""), 10)
+            echo fmt"{label}{instruction}"
+
+            currentPtr = currentPtr + 2
+
+        echo ""
+
     return (symbols, instructions)
 
+proc writeProgram(symbols: TableRef[uint16, string], instructions: seq[string], outputFile: string): void = 
+    let outFile = open(outputFile, fmWrite)
+    var currentPtr = programStart
 
-if paramCount() < 1:
-    echo "usage: dasm <input file> [<output file>]"
+    for instruction in instructions:
+        let label = alignLeft((if symbols.contains(currentPtr): symbols[currentPtr] else: ""), 10)
+        writeLine(outFile, fmt"{label}{instruction}")
+
+        currentPtr = currentPtr + 2
+
+    close(outFile)
+
+proc usage(): void = 
+    echo "Usage: dasm [options...] <input file>"
+    echo " --output <output file>   write the disassembled program to the given file"
+    echo " --symbols                print the symbols table"
+    echo " --statements             print the disassembled statements"
     quit(1)
 
+var inputFile = none(string)
+var outputFile = none(string)
+var printSymbols = false
+var printStatements = false
+
+var opts = initOptParser(commandLineParams(), longNoVal = @["output", "symbols", "statements"])
+while true:
+    opts.next()
+    case opts.kind:
+        of cmdEnd: break
+        of cmdShortOption, cmdLongOption:
+            if opts.key in @["symbols"]:
+                printSymbols = true
+            elif opts.key in @["statements"]:
+                printStatements = true
+            elif opts.key in @["output"]:
+                if opts.val == "":
+                    usage()
+                else:
+                    outputFile = some(opts.val)
+        of cmdArgument: 
+            inputFile = some(opts.key)
+            
+if inputFile.isNone():
+    panic("No input file given")
+
+if not fileExists(inputFile.get()):
+    panic("Input file not found")
+
+# load program
 let opcodes = readProgram(paramStr(1))
 
+# disassemble the program
 var symbols: TableRef[uint16, string]
 var instructions: seq[string]
 
-(symbols, instructions) = disassemble(opcodes)
+(symbols, instructions) = disassemble(opcodes, printSymbols, printStatements)
 
-var currPtr = programStart
-
-for instruction in instructions:
-    let label = alignLeft((if symbols.contains(currPtr): symbols[currPtr] else: ""), 10)
-    echo fmt"{label}{instruction}"
-
-    currPtr = currPtr + 2
-
+# write the output
+if outputFile.isSome():
+    writeProgram(symbols, instructions, outputFile.get())
