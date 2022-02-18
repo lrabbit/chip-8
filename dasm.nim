@@ -86,7 +86,7 @@ proc formatInstruction(mnemonic:string, vx = "", vy = "", value = ""): string =
         return mnemonic
 
 proc disassembleBYTE(opcode: uint16): string = 
-    return formatInstruction("BYTE", value = fmt"0x{toHex(opcode, 4)}")
+    return formatInstruction("BYTE", value = fmt"0x{toHex(opcode, 2)}")
 
 proc disassemble0(symbols: ref Table[uint16, string], opcode: uint16, currentPtr: uint16): string = 
     # 00E0 - CLS
